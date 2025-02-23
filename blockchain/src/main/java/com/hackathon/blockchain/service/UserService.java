@@ -12,45 +12,31 @@ import java.util.Optional;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final WalletService walletService;
 
-    public UserService(UserRepository userRepository, 
-                      PasswordEncoder passwordEncoder,
-                      WalletService walletService) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
-        this.walletService = walletService;
     }
 
-    @Transactional
     public User register(String username, String email, String password) {
-        // Validaciones
-        if (userRepository.existsByUsername(username)) {
+        System.out.println("Intentando guardar usuario: " + username + " - " + email);
+    
+        if (userRepository.findByUsername(username).isPresent()) {
             throw new RuntimeException("Username already exists");
         }
-        if (userRepository.existsByEmail(email)) {
-            throw new RuntimeException("Email already exists");
-        }
-
-        // Crear usuario
+    
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
-
+    
         User savedUser = userRepository.save(user);
-        
-        // Crear wallet automáticamente
-        walletService.createWalletForUser(savedUser);
-
+        System.out.println("Usuario guardado con ID: " + savedUser.getId());
+    
         return savedUser;
     }
 
     public Optional<User> findByUsername(String username) {
         return userRepository.findByUsername(username);
-    }
-
-    public boolean validatePassword(User user, String password) {
-        return passwordEncoder.matches(password, user.getPassword());
     }
 }

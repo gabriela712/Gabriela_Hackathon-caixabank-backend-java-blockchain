@@ -21,4 +21,4 @@ public class Wallet {
     private User user;
 
     private Double cashBalance;
-}
+} 

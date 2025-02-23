@@ -1,6 +1,18 @@
 package com.hackathon.blockchain.service;
 
+import com.hackathon.blockchain.model.Block;
+import com.hackathon.blockchain.repository.BlockRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
 public class BlockchainService {
+
+    @Autowired
+    private BlockRepository blockRepository;
 
     public boolean isChainValid() {
         List<Block> chain = blockRepository.findAll(Sort.by(Sort.Direction.ASC, "blockIndex"));
@@ -25,5 +37,9 @@ public class BlockchainService {
     
         System.out.println("✅ Blockchain is valid");
         return true;
+    }
+
+    public List<Block> getAllBlocks() {
+        return blockRepository.findAll(Sort.by(Sort.Direction.ASC, "blockIndex"));
     }
 }
