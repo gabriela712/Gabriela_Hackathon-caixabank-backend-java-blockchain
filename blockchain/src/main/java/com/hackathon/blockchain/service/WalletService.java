@@ -17,8 +17,9 @@ public class WalletService {
     public WalletService(WalletRepository walletRepository) {
         this.walletRepository = walletRepository;
     }
+} // Mas abajo
 
-    @Transactional
+    /**@Transactional
     public String createWalletForUser(User user) {
         if (walletRepository.findByUserId(user.getId()).isPresent()) {
             throw new RuntimeException("User already has a wallet");
@@ -41,4 +42,4 @@ public class WalletService {
     private String generateWalletAddress() {
         return DigestUtils.sha256Hex(UUID.randomUUID().toString());
     }
-}
+}**/

@@ -110,6 +110,7 @@ The contents of the /target folder must not be used for this task.
     }
     ```
     Response (HTTP 200):
+  - 
     ```json
     {"message": "User registered and logged in successfully"}
     ```

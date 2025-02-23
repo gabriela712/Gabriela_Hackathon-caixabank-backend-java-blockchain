@@ -61,7 +61,7 @@ public class SmartContractEvaluationService {
      * - Para "CANCEL_TRANSACTION", se marca la transacción como "CANCELED".
      * - (Si hubiera otras acciones, se podrían implementar aquí).
      */
-    @Transactional
+    /**@Transactional
     public void evaluateSmartContracts() {
         List<SmartContract> contracts = smartContractRepository.findAll(); // O filtrar por "ACTIVE"
         List<Transaction> pendingTxs = transactionRepository.findByStatus("PENDING");
@@ -85,7 +85,7 @@ public class SmartContractEvaluationService {
                 }
             }
         }
-    }
+    }**/
 
     // UNA UNICA CONDICION
     // /**
