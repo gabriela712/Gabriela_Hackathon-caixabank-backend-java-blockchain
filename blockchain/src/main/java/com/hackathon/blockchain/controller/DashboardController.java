@@ -1,6 +1,7 @@
 package com.hackathon.blockchain.controller;
 
 import com.hackathon.blockchain.model.User;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,12 +12,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     @GetMapping("/dashboard")
-    public String getUserDashboard(@AuthenticationPrincipal User user) {
+    public ResponseEntity<String> getUserDashboard(@AuthenticationPrincipal User user) {
         if (user == null) {
-            return "You are not authenticated";
+            return ResponseEntity.status(401)
+                .body("You are not authenticated");
         }
 
-        return "Welcome to your dashboard, " + user.getUsername() + "!\n" +
-               "Your registered email is: " + user.getEmail();
+        String response = String.format("Welcome to your dashboard, %s! Your registered email is: %s",
+            user.getUsername(),
+            user.getEmail());
+
+        return ResponseEntity.ok(response);
     }
 }
