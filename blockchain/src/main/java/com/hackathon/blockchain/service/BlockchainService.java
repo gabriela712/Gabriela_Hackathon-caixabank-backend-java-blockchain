@@ -42,4 +42,9 @@ public class BlockchainService {
     public List<Block> getAllBlocks() {
         return blockRepository.findAll(Sort.by(Sort.Direction.ASC, "blockIndex"));
     }
+
+    public List<Block> getBlocksOrderedByTimestamp() {
+        Sort sort = Sort.by(Sort.Direction.DESC, "timestamp");
+        return blockRepository.findAll(sort);
+    }
 }

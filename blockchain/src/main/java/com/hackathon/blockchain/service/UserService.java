@@ -18,6 +18,7 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional
     public User register(String username, String email, String password) {
         System.out.println("Intentando guardar usuario: " + username + " - " + email);
     
@@ -36,10 +37,12 @@ public class UserService {
         return savedUser;
     }
 
+    @Transactional(readOnly = true)
     public Optional<User> findByUsername(String username) {
         return userRepository.findByUsername(username);
     }
 
+    @Transactional(readOnly = true)
     public boolean validatePassword(User user, String password) {
         // Verifica si la contraseña en texto plano coincide con el hash almacenado
         return passwordEncoder.matches(password, user.getPassword());

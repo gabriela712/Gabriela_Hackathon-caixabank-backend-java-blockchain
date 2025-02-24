@@ -6,5 +6,6 @@ import org.springframework.data.domain.Sort;
 import java.util.List;
 
 public interface BlockRepository extends JpaRepository<Block, Long> {
+    //Escribe de donde  viene el sort
     List<Block> findAll(Sort sort);
 }

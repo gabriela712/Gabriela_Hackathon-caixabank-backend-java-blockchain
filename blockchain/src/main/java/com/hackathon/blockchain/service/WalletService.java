@@ -6,6 +6,7 @@ import com.hackathon.blockchain.model.User;
 import com.hackathon.blockchain.model.Wallet;
 import com.hackathon.blockchain.repository.TransactionRepository;
 import com.hackathon.blockchain.repository.WalletRepository;
+import com.hackathon.blockchain.repository.AssetRepository;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -32,15 +33,17 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
     private final MarketDataService marketDataService;
+    private final AssetRepository assetRepository;
     private static final double TRANSACTION_FEE_PERCENT = 0.01; // 1% de fee
 
     public WalletService(WalletRepository walletRepository, 
                          TransactionRepository transactionRepository, 
                          MarketDataService marketDataService,
-                         BlockchainService blockchainService) {
+                         AssetRepository assetRepository) {
         this.walletRepository = walletRepository;
         this.transactionRepository = transactionRepository;
         this.marketDataService = marketDataService;
+        this.assetRepository = assetRepository;
     }
 
     public Optional<Wallet> getWalletByUserId(Long userId) {
@@ -72,7 +75,8 @@ public class WalletService {
                 asset.setSymbol(symbol);
                 asset.setQuantity(initialQuantity);
                 asset.setWallet(liquidityWallet);
-               } 
+                assetRepository.save(asset);
+            } 
         }
     }
      * Los usuarios deben comprar primero USDT para poder cambiar por tokens
@@ -97,13 +101,16 @@ public class WalletService {
         double totalCost = quantity * price;
     
         if (symbol.equals("USDT")) {
-            if (userWallet.getBalance() < totalCost) {
+            if (userWallet.getAssets().stream()
+                    .filter(a -> a.getSymbol().equals("USDT"))
+                    .map(Asset::getQuantity)
+                    .findFirst()
+                    .orElse(0.0) < totalCost) {
                 return "❌ Insufficient fiat balance to buy USDT!";
             }
     
-            userWallet.setBalance(userWallet.getBalance() - totalCost);
-            updateWalletAssets(userWallet, "USDT", quantity);
-            updateWalletAssets(usdtLiquidityWallet, "USDT", -quantity);
+            updateWalletAssets(userWallet, "USDT", -totalCost);
+            updateWalletAssets(usdtLiquidityWallet, "USDT", quantity);
     
             walletRepository.save(userWallet);
             walletRepository.save(usdtLiquidityWallet);
@@ -167,7 +174,6 @@ public class WalletService {
                 return "❌ Not enough USDT liquidity!";
             }
     
-            userWallet.setBalance(userWallet.getBalance() + totalRevenue);
             updateWalletAssets(userWallet, symbol, -quantity);
             updateWalletAssets(liquidityWallet, symbol, quantity);
     
@@ -281,7 +287,11 @@ public class WalletService {
             }
     
             if (wallet.getUser() != null) {
-                totalValue += wallet.getBalance();
+                totalValue += wallet.getAssets().stream()
+                        .filter(a -> a.getSymbol().equals("USDT"))
+                        .map(Asset::getQuantity)
+                        .findFirst()
+                        .orElse(0.0);
             }
     
             double previousNetWorth = wallet.getNetWorth();
@@ -308,7 +318,11 @@ public class WalletService {
         return walletOpt.map(wallet -> {
             Map<String, Object> response = new HashMap<>();
             response.put("address", wallet.getAddress());
-            response.put("fiatBalance", wallet.getBalance());
+            response.put("fiatBalance", wallet.getAssets().stream()
+                    .filter(a -> a.getSymbol().equals("USDT"))
+                    .map(Asset::getQuantity)
+                    .findFirst()
+                    .orElse(0.0));
             response.put("assets", wallet.getAssets().stream()
                 .collect(Collectors.toMap(Asset::getSymbol, Asset::getQuantity)));
             return response;
@@ -348,12 +362,13 @@ public class WalletService {
             double fee = amount * TRANSACTION_FEE_PERCENT;
             
             // Aplicar fee solo si hay suficiente saldo
-            if (sender.getBalance() >= fee) {
-                sender.setBalance(sender.getBalance() - fee);
-                feeWallet.setBalance(feeWallet.getBalance() + fee);
-                
-                walletRepository.save(sender);
-                walletRepository.save(feeWallet);
+            if (sender.getAssets().stream()
+                    .filter(a -> a.getSymbol().equals("USDT"))
+                    .map(Asset::getQuantity)
+                    .findFirst()
+                    .orElse(0.0) >= fee) {
+                updateWalletAssets(sender, "USDT", -fee);
+                updateWalletAssets(feeWallet, "USDT", fee);
                 
                 tx.setFee(fee);
                 log.info("💰 Fee applied: {} USDT", fee);
