@@ -2,9 +2,13 @@ package com.hackathon.blockchain.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
 @Data
 @Entity
+@NoArgsConstructor
+@AllArgsConstructor
 @Table(name = "assets")
 public class Asset {
     @Id

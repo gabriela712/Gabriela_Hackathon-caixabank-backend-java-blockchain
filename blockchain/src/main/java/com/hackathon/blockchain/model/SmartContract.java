@@ -1,11 +1,13 @@
 package com.hackathon.blockchain.model;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "smart_contracts")
 public class SmartContract {
@@ -24,4 +26,6 @@ public class SmartContract {
     
     @Column(columnDefinition = "TEXT")
     private String digitalSignature;
+
+    private String Status;
 }

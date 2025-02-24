@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface SmartContractRepository extends JpaRepository<SmartContract, Long> {
     List<SmartContract> findByStatus(String status);
+    
 }

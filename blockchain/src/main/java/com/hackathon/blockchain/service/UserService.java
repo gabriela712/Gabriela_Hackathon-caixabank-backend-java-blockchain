@@ -39,4 +39,9 @@ public class UserService {
     public Optional<User> findByUsername(String username) {
         return userRepository.findByUsername(username);
     }
+
+    public boolean validatePassword(User user, String password) {
+        // Verifica si la contraseña en texto plano coincide con el hash almacenado
+        return passwordEncoder.matches(password, user.getPassword());
+    }
 }

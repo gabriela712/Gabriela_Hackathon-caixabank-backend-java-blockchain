@@ -16,5 +16,14 @@ public class Transaction {
     private String recipient; // Dirección del destinatario
     private BigDecimal amount; // Monto de la transacción
     private LocalDateTime timestamp; // Fecha y hora de la transacción
-    private String status; // Estado de la transacción (por ejemplo, "pendiente", "completada", "fallida")
+    private String status; 
+
+    
+    // Estado de la transacción (por ejemplo, "pendiente", "completada", "fallida")
+    public Object getReceiverWallet() {
+        throw new UnsupportedOperationException("Unimplemented method 'getReceiverWallet'");
+    }
+    public Object getType() {
+        throw new UnsupportedOperationException("Unimplemented method 'getType'");
+    }
 }

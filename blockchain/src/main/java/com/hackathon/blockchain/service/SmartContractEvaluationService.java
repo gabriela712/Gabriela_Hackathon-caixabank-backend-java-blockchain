@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.PublicKey;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class SmartContractEvaluationService {
@@ -22,6 +24,7 @@ public class SmartContractEvaluationService {
     private final WalletService walletService;
     private final WalletKeyService walletKeyService; // Para obtener la clave pública del emisor
     private final SpelExpressionParser parser = new SpelExpressionParser();
+    private static final Logger log = LoggerFactory.getLogger(SmartContractEvaluationService.class);
 
     public SmartContractEvaluationService(SmartContractRepository smartContractRepository,
                                           TransactionRepository transactionRepository,
@@ -53,7 +56,6 @@ public class SmartContractEvaluationService {
             return false;
         }
     }
-    
     /**
      * Evalúa todos los smart contracts activos sobre las transacciones pendientes.
      * Se inyectan las variables "amount" y "txType" en el contexto de SpEL.
@@ -63,70 +65,92 @@ public class SmartContractEvaluationService {
      */
     @Transactional
     public void evaluateSmartContracts() {
-        List<SmartContract> contracts = smartContractRepository.findAll(); // O filtrar por "ACTIVE"
-        List<Transaction> pendingTxs = transactionRepository.findByStatus("PENDING");
+        List<SmartContract> activeContracts = smartContractRepository.findByStatus("ACTIVE");
+        List<Transaction> pendingTransactions = transactionRepository.findByStatus("PENDING");
         
-        for (Transaction tx : pendingTxs) {
-            StandardEvaluationContext context = new StandardEvaluationContext();
-            context.setVariable("amount", tx.getAmount());
-            context.setVariable("txType", tx.getType());
-            for (SmartContract contract : contracts) {
-                if (!verifyContractSignature(contract)) continue;
-                Expression exp = parser.parseExpression(contract.getConditionExpression());
-                Boolean conditionMet = exp.getValue(context, Boolean.class);
-                if (conditionMet != null && conditionMet) {
-                    if ("CANCEL_TRANSACTION".equalsIgnoreCase(contract.getAction())) {
-                        tx.setStatus("CANCELED");
-                    } else if ("TRANSFER_FEE".equalsIgnoreCase(contract.getAction())) {
-                        walletService.transferFee(tx, contract.getActionValue());
-                        tx.setStatus("PROCESSED_CONTRACT");
-                    }
-                    transactionRepository.save(tx);
+        for (Transaction transaction : pendingTransactions) {
+            boolean transactionUpdated = false;
+            StandardEvaluationContext context = createEvaluationContext(transaction);
+            
+            for (SmartContract contract : activeContracts) {
+                if (!isValidContract(contract) || !evaluateCondition(contract, context)) {
+                    continue;
                 }
+                
+                executeContractAction(contract, transaction);
+                transactionUpdated = true;
+                
+                if ("CANCEL_TRANSACTION".equalsIgnoreCase(contract.getAction())) {
+                    break; // Si se cancela, no procesar más contratos
+                }
+            }
+            
+            if (transactionUpdated) {
+                transactionRepository.save(transaction);
             }
         }
     }
-}
 
-    // UNA UNICA CONDICION
-    // /**
-    //  * Evalúa todos los smart contracts activos sobre las transacciones pendientes.
-    //  * Para cada transacción con estado "PENDING", se evalúa la expresión condicional del contrato.
-    //  * Si se cumple y la firma es válida, se ejecuta la acción definida (por ejemplo, transferir fee)
-    //  * y se actualiza el estado de la transacción a "PROCESSED_CONTRACT".
-    //  */
-    // @Transactional
-    // public void evaluateSmartContracts() {
-    //     List<SmartContract> contracts = smartContractRepository.findByStatus("ACTIVE");
-    //     // Obtén todas las transacciones pendientes.
-    //     List<Transaction> pendingTxs = transactionRepository.findByStatus("PENDING");
-        
-    //     for (Transaction tx : pendingTxs) {
-    //         // Creamos un contexto de evaluación y definimos variables que se puedan usar en la expresión.
-    //         StandardEvaluationContext context = new StandardEvaluationContext();
-    //         context.setVariable("amount", tx.getAmount());
-    //         // Puedes inyectar otras variables según convenga.
+    private StandardEvaluationContext createEvaluationContext(Transaction tx) {
+        StandardEvaluationContext context = new StandardEvaluationContext();
+        context.setVariable("amount", tx.getAmount());
+        context.setVariable("txType", tx.getType());
+        context.setVariable("sender", tx.getSenderWallet().getAddress());
+        context.setVariable("receiver", tx.getReceiverWallet().getAddress());
+        return context;
+    }
+
+    private boolean isValidContract(SmartContract contract) {
+        try {
+            PublicKey publicKey = walletKeyService.getPublicKeyForWallet(contract.getIssuerWalletId());
+            if (publicKey == null) return false;
             
-    //         for (SmartContract contract : contracts) {
-    //             // Primero, verificar la firma del contrato.
-    //             if (!verifyContractSignature(contract)) {
-    //                 // Si la firma no es válida, se ignora este contrato.
-    //                 continue;
-    //             }
+            String dataToVerify = String.join("|", 
+                contract.getName(),
+                contract.getConditionExpression(),
+                contract.getAction(),
+                String.valueOf(contract.getActionValue()),
+                contract.getIssuerWalletId()
+            );
+            
+            return SignatureUtil.verifySignature(
+                dataToVerify, 
+                contract.getDigitalSignature(), 
+                publicKey
+            );
+        } catch (Exception e) {
+            log.error("Error validating contract {}: {}", contract.getId(), e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean evaluateCondition(SmartContract contract, StandardEvaluationContext context) {
+        try {
+            Expression expression = parser.parseExpression(contract.getConditionExpression());
+            Boolean result = expression.getValue(context, Boolean.class);
+            return result != null && result;
+        } catch (Exception e) {
+            log.warn("Error evaluating condition for contract {}: {}", contract.getId(), e.getMessage());
+            return false;
+        }
+    }
+
+    private void executeContractAction(SmartContract contract, Transaction transaction) {
+        switch (contract.getAction().toUpperCase()) {
+            case "CANCEL_TRANSACTION":
+                transaction.setStatus("CANCELED");
+                log.info("Transaction {} canceled by contract {}", transaction.getId(), contract.getId());
+                break;
                 
-    //             // Evaluar la condición del contrato usando SpEL.
-    //             Expression exp = parser.parseExpression(contract.getConditionExpression());
-    //             Boolean conditionMet = exp.getValue(context, Boolean.class);
+            case "TRANSFER_FEE":
+                if (walletService.transferFee(transaction, contract.getActionValue())) {
+                    transaction.setStatus("PROCESSED_WITH_FEE");
+                    log.info("Fee applied to transaction {}: {}", transaction.getId(), contract.getActionValue());
+                }
+                break;
                 
-    //             if (conditionMet != null && conditionMet) {
-    //                 // Si la condición se cumple y la acción es "TRANSFER_FEE", se ejecuta la transferencia.
-    //                 if ("TRANSFER_FEE".equalsIgnoreCase(contract.getAction())) {
-    //                     walletService.transferFee(tx, contract.getActionValue());
-    //                     tx.setStatus("PROCESSED_CONTRACT");
-    //                     transactionRepository.save(tx);
-    //                 }
-    //                 // Aquí se pueden agregar más acciones según el contrato.
-    //             }
-    //         }
-    //     }
-    // }
+            default:
+                log.warn("Unknown contract action: {}", contract.getAction());
+        }
+    }
+}
